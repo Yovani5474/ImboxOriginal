@@ -1,0 +1,32 @@
+{
+  "name": "imbox-panel-admin",
+  "version": "1.0.0",
+  "description": "Sistema de Control de Almacén IMBOX - Panel Administrador",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint ts/**/*.ts",
+    "format": "prettier --write \"ts/**/*.ts\""
+  },
+  "keywords": [
+    "typescript",
+    "admin",
+    "imbox"
+  ],
+  "author": "IMBOX Team",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "eslint": "^8.54.0",
+    "prettier": "^3.1.0",
+    "typescript": "^5.3.2"
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "chart.js": "^4.4.0"
+  }
+}

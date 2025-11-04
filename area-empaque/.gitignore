@@ -1,0 +1,35 @@
+# Archivos de Configuración Sensibles
+.env
+config/database.php
+*.backup
+
+# Datos Locales
+data/*.json
+data/backups/
+
+# Logs
+logs/
+*.log
+
+# Archivos Temporales
+*.tmp
+*.temp
+*.cache
+
+# Archivos del Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs
+.vscode/
+.idea/
+*.sublime-*
+
+# Backups
+*.bak
+*~
+
+# Uploads (si aplica)
+uploads/
+temp/

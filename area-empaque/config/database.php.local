@@ -1,0 +1,44 @@
+<?php
+/**
+ * Configuración de Base de Datos - DESARROLLO LOCAL (XAMPP)
+ * Este archivo usa las credenciales por defecto de XAMPP
+ */
+
+require_once __DIR__ . '/config.php';
+
+class Database {
+    private $host = 'localhost';
+    private $db_name;
+    private $username = 'root';  // Usuario por defecto de XAMPP
+    private $password = '';       // Sin contraseña en XAMPP
+    private $conn;
+
+    public function __construct() {
+        // Leer el nombre de la DB desde la constante definida en config.php
+        $this->db_name = defined('DB_NAME') ? DB_NAME : 'control_almacen';
+    }
+
+    public function getConnection() {
+        $this->conn = null;
+        
+        try {
+            $dsn = "mysql:host={$this->host};dbname={$this->db_name};charset=utf8mb4";
+            
+            $options = [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+                PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
+            ];
+            
+            $this->conn = new PDO($dsn, $this->username, $this->password, $options);
+            
+        } catch(PDOException $e) {
+            // Mostrar error en desarrollo
+            die("Error de conexión: " . $e->getMessage());
+        }
+        
+        return $this->conn;
+    }
+}
+?>

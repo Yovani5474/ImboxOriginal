@@ -1,0 +1,67 @@
+<?php
+/**
+ * Configuración de Base de Datos - VERSIÓN PRODUCCIÓN
+ * 
+ * INSTRUCCIONES:
+ * 1. Renombra este archivo a database.php
+ * 2. Configura las variables de entorno o edita los valores por defecto
+ * 3. NUNCA subas este archivo con credenciales reales a un repositorio público
+ */
+
+require_once __DIR__ . '/config.php';
+
+class Database {
+    private $host;
+    private $db_name;
+    private $username;
+    private $password;
+    private $conn;
+
+    public function __construct() {
+        // Leer configuración desde variables de entorno (RECOMENDADO)
+        // o usar valores por defecto
+        $this->host = getenv('DB_HOST') ?: 'localhost';
+        $this->db_name = defined('DB_NAME') ? DB_NAME : (getenv('DB_NAME') ?: 'control_almacen');
+        $this->username = getenv('DB_USER') ?: 'root'; // ⚠️ CAMBIAR EN PRODUCCIÓN
+        $this->password = getenv('DB_PASS') ?: ''; // ⚠️ CAMBIAR EN PRODUCCIÓN
+        
+        // Validar que las credenciales no sean las por defecto en producción
+        if (getenv('APP_ENV') === 'production') {
+            if ($this->username === 'root' || empty($this->password)) {
+                error_log('CRÍTICO: Usando credenciales por defecto en producción');
+                die('Error de configuración del sistema. Contacte al administrador.');
+            }
+        }
+    }
+
+    public function getConnection() {
+        $this->conn = null;
+        
+        try {
+            $this->conn = new PDO(
+                "mysql:host=" . $this->host . ";dbname=" . $this->db_name . ";charset=utf8mb4",
+                $this->username,
+                $this->password,
+                [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_EMULATE_PREPARES => false,
+                ]
+            );
+        } catch(PDOException $exception) {
+            // Registrar el error en el log (NO mostrarlo al usuario)
+            error_log("Error de conexión BD: " . $exception->getMessage());
+            
+            // Mensaje genérico para el usuario
+            if (getenv('APP_ENV') === 'production') {
+                die("Error de conexión con el sistema. Por favor, intente más tarde o contacte al soporte.");
+            } else {
+                // Solo en desarrollo mostrar detalles
+                die("Error de conexión: " . $exception->getMessage());
+            }
+        }
+        
+        return $this->conn;
+    }
+}
+?>

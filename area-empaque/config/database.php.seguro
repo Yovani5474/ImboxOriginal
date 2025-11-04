@@ -1,0 +1,74 @@
+<?php
+/**
+ * Configuración SEGURA de Base de Datos - Almacén 2
+ * INSTRUCCIONES:
+ * 1. Renombra el archivo actual database.php a database.php.backup
+ * 2. Renombra este archivo a database.php
+ * 3. Las contraseñas están protegidas con variables de entorno
+ */
+
+require_once __DIR__ . '/config.php';
+
+class Database {
+    private $host;
+    private $db_name;
+    private $username;
+    private $password;
+    private $conn;
+
+    public function __construct() {
+        // Variables de entorno (más seguro) o valores hardcoded
+        $this->host = getenv('DB_HOST') ?: 'localhost';
+        $this->db_name = defined('DB_NAME') ? DB_NAME : (getenv('DB_NAME') ?: 'control_almacen');
+        
+        // ⚠️ IMPORTANTE: Cambiar estos valores por los tuyos
+        $this->username = getenv('DB_USER') ?: 'almacen_prod';
+        $this->password = getenv('DB_PASS') ?: 'bf312c5f306b02f53efd930d26098e71';
+        
+        // Validación de seguridad en producción
+        if ($this->isProduction()) {
+            if ($this->username === 'root' || empty($this->password)) {
+                error_log('CRÍTICO: Credenciales inseguras en producción');
+                die('Error de configuración. Contacte al administrador.');
+            }
+        }
+    }
+
+    public function getConnection() {
+        $this->conn = null;
+        
+        try {
+            $dsn = "mysql:host={$this->host};dbname={$this->db_name};charset=utf8mb4";
+            
+            $options = [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+                PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
+            ];
+            
+            $this->conn = new PDO($dsn, $this->username, $this->password, $options);
+            
+        } catch(PDOException $e) {
+            // Registrar error en log (NO mostrarlo al usuario)
+            error_log("Error BD: " . $e->getMessage());
+            
+            // Mensaje genérico para el usuario
+            if ($this->isProduction()) {
+                die("Error de conexión. Por favor, intente más tarde.");
+            } else {
+                // Solo en desarrollo mostrar detalles
+                die("Error de conexión: " . $e->getMessage());
+            }
+        }
+        
+        return $this->conn;
+    }
+    
+    private function isProduction() {
+        return getenv('APP_ENV') === 'production' || 
+               (isset($_SERVER['HTTP_HOST']) && 
+                strpos($_SERVER['HTTP_HOST'], 'localhost') === false);
+    }
+}
+?>

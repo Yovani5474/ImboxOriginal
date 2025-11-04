@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "nombre": "Carlos Costurero",
+    "telefono": "555-1001",
+    "email": "carlos@taller.local",
+    "activo": 1
+  },
+  {
+    "id": 2,
+    "nombre": "María Costurera",
+    "telefono": "555-1002",
+    "email": "maria@taller.local",
+    "activo": 1
+  }
+]

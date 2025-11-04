@@ -1,0 +1,29 @@
+# Seguridad para Almacén 2 - Empaque
+# Protección de archivos sensibles
+
+# Denegar acceso directo a archivos de datos
+<FilesMatch "\.(db|sqlite|json)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Permitir solo métodos HTTP específicos en API
+<Files "transferencias.php">
+    <LimitExcept GET POST>
+        Order Allow,Deny
+        Deny from all
+    </LimitExcept>
+</Files>
+
+# Proteger archivos de configuración
+<FilesMatch "^(config|settings)\.php$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Headers de seguridad
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>

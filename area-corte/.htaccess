@@ -1,0 +1,66 @@
+# ============================================
+# SEGURIDAD BÁSICA - Almacén 1 (Corte)
+# ============================================
+
+# Proteger archivos de configuración
+<FilesMatch "^(config\.php|\.env|\.htaccess)$">
+    Require all denied
+</FilesMatch>
+
+# Proteger archivos de base de datos
+<FilesMatch "\.(db|json|sqlite|sqlite3)$">
+    Require all denied
+</FilesMatch>
+
+# Bloquear acceso a archivos ocultos
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# Deshabilitar listado de directorios
+Options -Indexes
+
+# ============================================
+# REWRITE RULES - API
+# ============================================
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /1/
+    
+    # API Routing
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^api/controles/([0-9]+)$ api/controles.php/$1 [L,QSA]
+    RewriteRule ^api/controles$ api/controles.php [L,QSA]
+</IfModule>
+
+# ============================================
+# PERFORMANCE
+# ============================================
+
+# Habilitar compresión
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
+</IfModule>
+
+# Caché de recursos estáticos
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/jpg "access plus 1 month"
+    ExpiresByType text/css "access plus 1 week"
+    ExpiresByType application/javascript "access plus 1 week"
+</IfModule>
+
+# ============================================
+# HEADERS DE SEGURIDAD
+# ============================================
+
+<IfModule mod_headers.c>
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>

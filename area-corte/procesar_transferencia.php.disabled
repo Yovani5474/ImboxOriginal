@@ -1,0 +1,580 @@
+<?php
+/**
+ * Procesar Transferencia - Área de Corte
+ * Recibir transferencias desde Empaque con detalle de tallas
+ */
+
+require_once 'config.php';
+
+$db = getDB();
+$mensaje = '';
+$transferencia_id = $_GET['id'] ?? null;
+$transferencia_data = null;
+$items_data = [];
+
+// Obtener datos de la transferencia desde Empaque
+if ($transferencia_id) {
+    try {
+        $api_url = "http://localhost/2/api/transferencias.php/{$transferencia_id}";
+        
+        $ch = curl_init($api_url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        $response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($http_code === 200) {
+            $data = json_decode($response, true);
+            if (isset($data['success']) && $data['success']) {
+                $transferencia_data = $data['data'] ?? null;
+            }
+        }
+    } catch (Exception $e) {
+        $mensaje = '<div class="alert alert-danger">Error: ' . $e->getMessage() . '</div>';
+    }
+}
+
+// Procesar formulario de recepción
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'procesar') {
+    // Aquí iría la lógica para guardar los datos de recepción
+    // Por ahora solo mostraremos un mensaje
+    $mensaje = '<div class="alert alert-success">Transferencia procesada correctamente</div>';
+}
+
+// Calcular estadísticas si hay items
+$stats_colores = [];
+$stats_tallas = [];
+$total_items_tablero = 0;
+
+if (!empty($items_data)) {
+    foreach ($items_data as $item) {
+        $color = trim($item['color_codigo'] ?? $item['color'] ?? '');
+        
+        $tallas = ['2', '4', '6', '8', '10', '12', '14', '16', 'XS', 'S', 'M', 'L', 'XL', 'XXL'];
+        foreach ($tallas as $talla) {
+            $key = 'talla_' . $talla;
+            $cantidad = intval($item[$key] ?? 0);
+            
+            if ($cantidad > 0) {
+                $total_items_tablero += $cantidad;
+                
+                if ($color !== '') {
+                    if (!isset($stats_colores[$color])) {
+                        $stats_colores[$color] = 0;
+                    }
+                    $stats_colores[$color] += $cantidad;
+                }
+                
+                if (!isset($stats_tallas[$talla])) {
+                    $stats_tallas[$talla] = 0;
+                }
+                $stats_tallas[$talla] += $cantidad;
+            }
+        }
+    }
+    
+    arsort($stats_colores);
+    ksort($stats_tallas);
+}
+
+function h($s) { return htmlspecialchars($s ?? ''); }
+?>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Corte | Procesar Recepción</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/1/css/theme-orange.css">
+    <style>
+        body {
+            background: linear-gradient(-45deg, #FF8C00, #FFB84D, #FFA500, #FF9933);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+            min-height: 100vh;
+        }
+        
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        
+        .main-container {
+            padding: 30px 0;
+        }
+        
+        .header-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        
+        /* Tabla de tallas */
+        .tabla-tallas {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            background: white;
+        }
+        
+        .tabla-tallas th {
+            background: linear-gradient(135deg, #FF8C00 0%, #FFA500 100%);
+            color: white;
+            padding: 8px 4px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.75rem;
+            border: 1px solid #ddd;
+        }
+        
+        .tabla-tallas td {
+            padding: 4px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+        
+        .tabla-tallas input[type="text"],
+        .tabla-tallas input[type="number"] {
+            width: 100%;
+            border: 1px solid #e0e0e0;
+            padding: 6px 4px;
+            text-align: center;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+        
+        .tabla-tallas input[type="text"]:focus,
+        .tabla-tallas input[type="number"]:focus {
+            outline: none;
+            border-color: #FF8C00;
+            box-shadow: 0 0 0 2px rgba(255, 140, 0, 0.2);
+        }
+        
+        .color-codigo {
+            min-width: 100px;
+            font-weight: 500;
+        }
+        
+        .talla-input {
+            width: 50px;
+            font-weight: 600;
+        }
+        
+        .talla-input.bg-warning {
+            background-color: #fff3cd !important;
+        }
+        
+        .total-row {
+            font-weight: 700;
+            background-color: #f8f9fa;
+        }
+        
+        .btn-procesar {
+            background: linear-gradient(135deg, #28A745 0%, #20C997 100%);
+            border: none;
+            color: white;
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            border-radius: 50px;
+            box-shadow: 0 5px 20px rgba(40, 167, 69, 0.4);
+            transition: all 0.3s;
+        }
+        
+        .btn-procesar:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(40, 167, 69, 0.6);
+        }
+    </style>
+</head>
+<body>
+    <?php include __DIR__ . '/includes/loading_screen.php'; ?>
+    
+    <div class="main-container">
+        <div class="container">
+            
+            <!-- Header -->
+            <div class="header-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h2 class="text-imbox-orange mb-1">
+                            <i class="fas fa-box-open me-2"></i>
+                            Procesar Recepción
+                        </h2>
+                        <p class="text-muted mb-0">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Área de Corte | Recibir prendas desde Empaque
+                        </p>
+                    </div>
+                    <a href="ver_transferencias.php" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Volver
+                    </a>
+                </div>
+            </div>
+            
+            <?php if ($mensaje): ?>
+                <?= $mensaje ?>
+            <?php endif; ?>
+            
+            <?php if (!$transferencia_data): ?>
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>No se encontró la transferencia.</strong> Verifica el ID y vuelve a intentarlo.
+            </div>
+            <?php else: ?>
+            
+            <!-- Información de la Transferencia -->
+            <div class="card mb-3">
+                <div class="card-header bg-info bg-opacity-25">
+                    <i class="fas fa-info-circle me-2"></i>Información de Transferencia
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Referencia:</label>
+                            <p class="text-primary fw-bold"><?= h($transferencia_data['referencia']) ?></p>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Origen:</label>
+                            <p>Almacén Empaque</p>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Total Items:</label>
+                            <p><span class="badge bg-primary"><?= h($transferencia_data['total_items'] ?? 0) ?></span></p>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Tipo de Prenda:</label>
+                            <p><?= h($transferencia_data['tipo_prenda'] ?? 'No especificado') ?></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <form method="POST" action="">
+                <input type="hidden" name="action" value="procesar">
+                <input type="hidden" name="transferencia_id" value="<?= h($transferencia_id) ?>">
+                
+                <!-- Información de Recepción -->
+                <div class="card mb-3">
+                    <div class="card-header bg-warning bg-opacity-25">
+                        <i class="fas fa-calendar me-2"></i>Información de Recepción
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Fecha de Recepción <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" name="fecha_recepcion" value="<?= date('Y-m-d') ?>" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Recibido por</label>
+                                <input type="text" class="form-control" name="recibido_por" placeholder="Nombre del receptor">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Estado</label>
+                                <select class="form-select" name="estado" required>
+                                    <option value="recibido">Recibido</option>
+                                    <option value="completado">Completado</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tablero de Estadísticas -->
+                <?php if ($transferencia_data): ?>
+                <div class="card mb-3" style="background: linear-gradient(135deg, #FFF8F0 0%, #FFFFFF 100%); border-left: 4px solid #FF8C00;">
+                    <div class="card-header bg-warning bg-opacity-25">
+                        <h6 class="mb-0">
+                            <i class="fas fa-chart-bar text-imbox-orange me-2"></i>
+                            Resumen de Recepción
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <!-- Total de Items -->
+                        <div class="alert border-0 mb-3" style="background: linear-gradient(135deg, #FFA500 0%, #FFB84D 100%);">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <?php if ($total_items_tablero > 0): ?>
+                                    <h4 class="text-white mb-0">
+                                        <i class="fas fa-boxes me-2"></i>
+                                        Total Recibido: <strong><?php echo number_format($total_items_tablero); ?></strong> prendas
+                                    </h4>
+                                    <p class="text-white mb-0" style="opacity: 0.9; font-size: 0.9em;">
+                                        <i class="fas fa-check-circle me-1"></i>
+                                        Suma de todas las tallas en la tabla
+                                        <?php if (!empty($transferencia_data['tipo_prenda'])): ?>
+                                            · Tipo: <strong><?= h($transferencia_data['tipo_prenda']) ?></strong>
+                                        <?php endif; ?>
+                                    </p>
+                                    <?php else: ?>
+                                    <h4 class="text-white mb-0">
+                                        <i class="fas fa-box-open me-2"></i>
+                                        Esperando Ingreso de Datos
+                                    </h4>
+                                    <p class="text-white mb-0" style="opacity: 0.9; font-size: 0.9em;">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Total esperado: <strong><?php echo number_format($transferencia_data['total_items'] ?? 0); ?></strong> items
+                                        <?php if (!empty($transferencia_data['tipo_prenda'])): ?>
+                                            · Tipo: <strong><?= h($transferencia_data['tipo_prenda']) ?></strong>
+                                        <?php endif; ?>
+                                    </p>
+                                    <p class="text-white mb-0 mt-2" style="opacity: 0.9; font-size: 0.85em;">
+                                        <i class="fas fa-arrow-down me-1"></i>
+                                        Ingresa los datos en la tabla de abajo para ver el resumen aquí
+                                    </p>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <div class="text-white" style="font-size: 2.5rem; font-weight: bold; opacity: 0.3;">
+                                        <?php echo $total_items_tablero > 0 ? '✅' : '📦'; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <!-- Por Color -->
+                            <div class="col-md-6">
+                                <div class="card border-0 shadow-sm h-100">
+                                    <div class="card-header bg-success text-white">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-palette me-2"></i>
+                                            Distribución por Color
+                                        </h6>
+                                    </div>
+                                    <div class="card-body" style="max-height: 250px; overflow-y: auto;">
+                                        <table class="table table-sm table-hover mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th>Color / Código</th>
+                                                    <th class="text-end">Cantidad</th>
+                                                    <th class="text-end">%</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($stats_colores as $color => $cantidad): 
+                                                    $porcentaje = $total_items_tablero > 0 ? ($cantidad / $total_items_tablero) * 100 : 0;
+                                                ?>
+                                                <tr>
+                                                    <td>
+                                                        <span class="badge bg-light text-dark">
+                                                            <?php echo h($color); ?>
+                                                        </span>
+                                                    </td>
+                                                    <td class="text-end">
+                                                        <strong class="text-success"><?php echo number_format($cantidad); ?></strong>
+                                                    </td>
+                                                    <td class="text-end">
+                                                        <small class="text-muted"><?php echo number_format($porcentaje, 1); ?>%</small>
+                                                    </td>
+                                                </tr>
+                                                <?php endforeach; ?>
+                                                <?php if (empty($stats_colores)): ?>
+                                                <tr>
+                                                    <td colspan="3" class="text-center text-muted py-4">
+                                                        <i class="fas fa-arrow-down fa-2x mb-2 d-block"></i>
+                                                        <strong>Ingresa colores en la tabla</strong>
+                                                        <br>
+                                                        <small>Los datos aparecerán aquí automáticamente</small>
+                                                    </td>
+                                                </tr>
+                                                <?php endif; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Por Talla -->
+                            <div class="col-md-6">
+                                <div class="card border-0 shadow-sm h-100">
+                                    <div class="card-header bg-warning text-dark">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-ruler me-2"></i>
+                                            Distribución por Talla
+                                        </h6>
+                                    </div>
+                                    <div class="card-body" style="max-height: 250px; overflow-y: auto;">
+                                        <table class="table table-sm table-hover mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th>Talla</th>
+                                                    <th class="text-end">Cantidad</th>
+                                                    <th class="text-end">%</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($stats_tallas as $talla => $cantidad): 
+                                                    $porcentaje = $total_items_tablero > 0 ? ($cantidad / $total_items_tablero) * 100 : 0;
+                                                ?>
+                                                <tr>
+                                                    <td>
+                                                        <span class="badge bg-light text-dark">
+                                                            <?php echo h($talla); ?>
+                                                        </span>
+                                                    </td>
+                                                    <td class="text-end">
+                                                        <strong class="text-warning"><?php echo number_format($cantidad); ?></strong>
+                                                    </td>
+                                                    <td class="text-end">
+                                                        <small class="text-muted"><?php echo number_format($porcentaje, 1); ?>%</small>
+                                                    </td>
+                                                </tr>
+                                                <?php endforeach; ?>
+                                                <?php if (empty($stats_tallas)): ?>
+                                                <tr>
+                                                    <td colspan="3" class="text-center text-muted py-4">
+                                                        <i class="fas fa-arrow-down fa-2x mb-2 d-block"></i>
+                                                        <strong>Ingresa cantidades por talla</strong>
+                                                        <br>
+                                                        <small>El resumen aparecerá aquí automáticamente</small>
+                                                    </td>
+                                                </tr>
+                                                <?php endif; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Nota informativa -->
+                        <?php if ($total_items_tablero > 0): ?>
+                        <div class="alert alert-success border-0 mt-3 mb-0">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <strong>Datos ingresados:</strong> El resumen muestra <?php echo number_format($total_items_tablero); ?> prendas registradas.
+                            <?php 
+                            $esperado = intval($transferencia_data['total_items'] ?? 0);
+                            if ($esperado > 0 && $total_items_tablero != $esperado): 
+                                $diferencia = abs($esperado - $total_items_tablero);
+                            ?>
+                                <br><i class="fas fa-exclamation-triangle me-1"></i>
+                                <strong>Nota:</strong> Se esperaban <?php echo $esperado; ?> items 
+                                (diferencia: <?php echo $total_items_tablero > $esperado ? '+' : '-'; ?><?php echo $diferencia; ?>)
+                            <?php endif; ?>
+                        </div>
+                        <?php else: ?>
+                        <div class="alert alert-info border-0 mt-3 mb-0">
+                            <i class="fas fa-lightbulb me-2"></i>
+                            <strong>¿Cómo funciona?</strong> Ingresa los datos en la tabla de abajo (colores y cantidades por talla).
+                            El resumen se actualizará automáticamente mostrando las estadísticas.
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+                
+                <!-- Tabla de Tallas por Color -->
+                <div class="card mb-3">
+                    <div class="card-header bg-warning bg-opacity-25">
+                        <i class="fas fa-table me-2"></i>Detalle de Tallas por Color
+                    </div>
+                    <div class="card-body p-2">
+                        <div class="table-responsive">
+                            <table class="tabla-tallas">
+                                <thead>
+                                    <tr>
+                                        <th rowspan="2">N°</th>
+                                        <th rowspan="2">COLOR / CÓDIGO</th>
+                                        <th colspan="8">TALLAS NUMÉRICAS</th>
+                                        <th colspan="6">TALLAS LETRAS</th>
+                                        <th rowspan="2">TOTAL</th>
+                                        <th rowspan="2">OBSERVACIÓN</th>
+                                    </tr>
+                                    <tr>
+                                        <th>2</th><th>4</th><th>6</th><th>8</th><th>10</th><th>12</th><th>14</th><th>16</th>
+                                        <th>XS</th><th>S</th><th>M</th><th>L</th><th>XL</th><th>XXL</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabla-items">
+                                    <?php for ($i = 1; $i <= 20; $i++): ?>
+                                    <tr>
+                                        <td><strong><?= $i ?></strong></td>
+                                        <td>
+                                            <input type="text" name="items[<?= $i ?>][color_codigo]" class="color-codigo" placeholder="Color/Código">
+                                        </td>
+                                        <td><input type="number" name="items[<?= $i ?>][talla_2]" class="talla-input" min="0" value=""></td>
+                                        <td><input type="number" name="items[<?= $i ?>][talla_4]" class="talla-input" min="0" value=""></td>
+                                        <td><input type="number" name="items[<?= $i ?>][talla_6]" class="talla-input" min="0" value=""></td>
+                                        <td><input type="number" name="items[<?= $i ?>][talla_8]" class="talla-input" min="0" value=""></td>
+                                        <td><input type="number" name="items[<?= $i ?>][talla_10]" class="talla-input" min="0" value=""></td>
+                                        <td><input type="number" name="items[<?= $i ?>][talla_12]" class="talla-input" min="0" value=""></td>
+                                        <td><input type="number" name="items[<?= $i ?>][talla_14]" class="talla-input" min="0" value=""></td>
+                                        <td><input type="number" name="items[<?= $i ?>][talla_16]" class="talla-input" min="0" value=""></td>
+                                        <td><input type="number" name="items[<?= $i ?>][talla_XS]" class="talla-input" min="0" value=""></td>
+                                        <td><input type="number" name="items[<?= $i ?>][talla_S]" class="talla-input" min="0" value=""></td>
+                                        <td><input type="number" name="items[<?= $i ?>][talla_M]" class="talla-input" min="0" value=""></td>
+                                        <td><input type="number" name="items[<?= $i ?>][talla_L]" class="talla-input" min="0" value=""></td>
+                                        <td><input type="number" name="items[<?= $i ?>][talla_XL]" class="talla-input" min="0" value=""></td>
+                                        <td><input type="number" name="items[<?= $i ?>][talla_XXL]" class="talla-input" min="0" value=""></td>
+                                        <td class="total-row">
+                                            <span class="total-fila" id="total-<?= $i ?>">0</span>
+                                        </td>
+                                        <td>
+                                            <input type="text" name="items[<?= $i ?>][observacion]" placeholder="Observación" style="width: 150px;">
+                                        </td>
+                                    </tr>
+                                    <?php endfor; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Botones -->
+                <div class="text-center mb-4">
+                    <button type="submit" class="btn btn-procesar">
+                        <i class="fas fa-check-circle me-2"></i>
+                        Procesar Recepción
+                    </button>
+                    <a href="ver_transferencias.php" class="btn btn-outline-secondary ms-2">
+                        <i class="fas fa-times me-2"></i>
+                        Cancelar
+                    </a>
+                </div>
+            </form>
+            
+            <?php endif; ?>
+            
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Ocultar pantalla de carga
+        window.addEventListener('load', function() {
+            const loadingScreen = document.getElementById('loading-screen');
+            if (loadingScreen) {
+                setTimeout(() => {
+                    loadingScreen.classList.add('hidden');
+                    setTimeout(() => loadingScreen.remove(), 500);
+                }, 500);
+            }
+        });
+        
+        // Calcular totales por fila
+        document.querySelectorAll('.talla-input').forEach(input => {
+            input.addEventListener('input', function() {
+                const fila = this.closest('tr');
+                const inputs = fila.querySelectorAll('.talla-input');
+                let total = 0;
+                
+                inputs.forEach(inp => {
+                    const val = parseInt(inp.value) || 0;
+                    total += val;
+                });
+                
+                const totalSpan = fila.querySelector('.total-fila');
+                if (totalSpan) {
+                    totalSpan.textContent = total;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

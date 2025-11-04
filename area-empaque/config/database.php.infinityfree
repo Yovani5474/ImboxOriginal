@@ -1,0 +1,107 @@
+<?php
+/**
+ * Configuración de Base de Datos - INFINITYFREE PRODUCTION
+ * 
+ * INSTRUCCIONES PARA DESPLIEGUE:
+ * 1. Renombra este archivo a database.php en el servidor
+ * 2. Verifica que las credenciales coincidan con tu panel de InfinityFree
+ * 3. La base de datos debe estar creada en InfinityFree
+ * 4. Ejecuta el script de creación de tablas: database/schema_tablas.sql
+ * 5. Luego ejecuta: database/datos_iniciales.sql
+ */
+
+require_once __DIR__ . '/config.php';
+
+class Database {
+    private $host = 'sql303.infinityfree.com';
+    private $db_name = 'if0_40096200_control_almacen';
+    private $username = 'if0_40096200';
+    private $password = 'TazLBTRzaYzlV1O';
+    private $port = 3306;
+    private $conn;
+
+    public function __construct() {
+        // Permitir override desde variables de entorno
+        if (getenv('DB_HOST')) {
+            $this->host = getenv('DB_HOST');
+        }
+        if (getenv('DB_NAME')) {
+            $this->db_name = getenv('DB_NAME');
+        }
+        if (getenv('DB_USER')) {
+            $this->username = getenv('DB_USER');
+        }
+        if (getenv('DB_PASS')) {
+            $this->password = getenv('DB_PASS');
+        }
+        if (getenv('DB_PORT')) {
+            $this->port = getenv('DB_PORT');
+        }
+    }
+
+    public function getConnection() {
+        $this->conn = null;
+        
+        try {
+            $dsn = "mysql:host={$this->host};port={$this->port};dbname={$this->db_name};charset=utf8mb4";
+            
+            $this->conn = new PDO(
+                $dsn,
+                $this->username,
+                $this->password,
+                [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_EMULATE_PREPARES => false,
+                    PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4",
+                    // Configuraciones específicas para InfinityFree
+                    PDO::ATTR_TIMEOUT => 10,
+                    PDO::ATTR_PERSISTENT => false, // No usar conexiones persistentes en hosting compartido
+                ]
+            );
+            
+            // Configurar zona horaria
+            $this->conn->exec("SET time_zone = '-05:00'"); // Perú (UTC-5)
+            
+        } catch(PDOException $exception) {
+            // Registrar el error
+            error_log("Error de conexión BD InfinityFree: " . $exception->getMessage());
+            
+            // Mensaje genérico para el usuario
+            die("Error de conexión con la base de datos. Por favor, intente más tarde o contacte al administrador.");
+        }
+        
+        return $this->conn;
+    }
+    
+    /**
+     * Verificar conexión
+     */
+    public function testConnection() {
+        try {
+            $conn = $this->getConnection();
+            if ($conn) {
+                return [
+                    'success' => true,
+                    'message' => 'Conexión exitosa a InfinityFree',
+                    'host' => $this->host,
+                    'database' => $this->db_name
+                ];
+            }
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Error de conexión',
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+}
+
+// Función global para obtener conexión (retrocompatibilidad)
+function getDatabase() {
+    $database = new Database();
+    return $database->getConnection();
+}
+
+?>
